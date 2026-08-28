@@ -1,0 +1,98 @@
+{
+    "dataset_size": 3750,
+    "class_distribution": {
+        "SAFE": 3674,
+        "FRAUD": 76
+    },
+    "cost_assumptions": {
+        "false_positive_cost": 10.0,
+        "false_negative_cost": 500.0
+    },
+    "thresholds": {
+        "0.3": {
+            "precision": 0.16621983914209115,
+            "recall": 0.8157894736842105,
+            "f1": 0.27616926503340755,
+            "accuracy": 0.9133333333333333,
+            "confusion_matrix": {
+                "TP": 62,
+                "TN": 3363,
+                "FP": 311,
+                "FN": 14
+            },
+            "rates": {
+                "false_positive_rate": 0.08464888405008165,
+                "false_negative_rate": 0.18421052631578946
+            },
+            "costs": {
+                "fp_cost": 3110.0,
+                "fn_cost": 7000.0,
+                "total_cost": 10110.0
+            }
+        },
+        "0.5": {
+            "precision": 0.20066889632107024,
+            "recall": 0.7894736842105263,
+            "f1": 0.32,
+            "accuracy": 0.932,
+            "confusion_matrix": {
+                "TP": 60,
+                "TN": 3435,
+                "FP": 239,
+                "FN": 16
+            },
+            "rates": {
+                "false_positive_rate": 0.06505171475231356,
+                "false_negative_rate": 0.21052631578947367
+            },
+            "costs": {
+                "fp_cost": 2390.0,
+                "fn_cost": 8000.0,
+                "total_cost": 10390.0
+            }
+        },
+        "0.7": {
+            "precision": 0.25217391304347825,
+            "recall": 0.7631578947368421,
+            "f1": 0.3790849673202614,
+            "accuracy": 0.9493333333333334,
+            "confusion_matrix": {
+                "TP": 58,
+                "TN": 3502,
+                "FP": 172,
+                "FN": 18
+            },
+            "rates": {
+                "false_positive_rate": 0.046815459989112684,
+                "false_negative_rate": 0.23684210526315788
+            },
+            "costs": {
+                "fp_cost": 1720.0,
+                "fn_cost": 9000.0,
+                "total_cost": 10720.0
+            }
+        },
+        "0.85": {
+            "precision": 0.4628099173553719,
+            "recall": 0.7368421052631579,
+            "f1": 0.5685279187817259,
+            "accuracy": 0.9773333333333334,
+            "confusion_matrix": {
+                "TP": 56,
+                "TN": 3609,
+                "FP": 65,
+                "FN": 20
+            },
+            "rates": {
+                "false_positive_rate": 0.017691888949373978,
+                "false_negative_rate": 0.2631578947368421
+            },
+            "costs": {
+                "fp_cost": 650.0,
+                "fn_cost": 10000.0,
+                "total_cost": 10650.0
+            }
+        }
+    },
+    "roc_auc": 0.9514332578861416
+}
