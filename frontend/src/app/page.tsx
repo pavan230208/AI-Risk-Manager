@@ -25,7 +25,8 @@ export default function Dashboard() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const res = await fetch(`${apiUrl}/api/v1/system/trace`, {
         headers: {
-          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc"
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
+          "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || ""
         }
       });
       if (res.ok) setSystemState(await res.json());
@@ -50,7 +51,7 @@ export default function Dashboard() {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "X-API-Key": "production_api_key"
+          "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || ""
         },
         body: JSON.stringify(tx)
       });
@@ -98,7 +99,8 @@ export default function Dashboard() {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc"
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
+        "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || ""
       },
       body: JSON.stringify({ active })
     });
@@ -111,7 +113,8 @@ export default function Dashboard() {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc"
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
+        "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || ""
       },
       body: JSON.stringify({ active })
     });
