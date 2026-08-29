@@ -262,7 +262,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* LIVE FEED */}
-                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col flex-1 min-h-[600px]">
+                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[950px]">
                   <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-[#0F1420]">
                     <div className="flex items-center space-x-4">
                       <h2 className="text-lg font-bold text-white">Live Transaction Feed</h2>
