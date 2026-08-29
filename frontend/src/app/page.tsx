@@ -20,6 +20,71 @@ export default function Dashboard() {
   const [scenarioDesc, setScenarioDesc] = useState("Select a scenario to populate transaction data.");
   const [activeTab, setActiveTab] = useState("manual"); // manual | integration
 
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [autoStats, setAutoStats] = useState({
+    total: 0, analyzed: 0, low: 0, medium: 0, high: 0, allowed: 0, flagged: 0, blocked: 0
+  });
+  const [autoTransactions, setAutoTransactions] = useState<any[]>([]);
+
+  useEffect(() => {
+    let interval: any;
+    if (autoRunning) {
+      interval = setInterval(async () => {
+        const amounts = [20, 50, 250, 500, 1500, 8000, 50000];
+        const locations = ["US", "US", "UK", "IN", "CN", "RU", "KP"];
+        const devices = ["DEV-OLD", "DEV-NEW", "DEV-NEW-HACKED"];
+        
+        const simTx = {
+          transaction_id: "TXN-" + Math.floor(Math.random() * 100000),
+          user_id: "USR-" + Math.floor(Math.random() * 1000),
+          merchant_id: "MERCH-" + Math.floor(Math.random() * 500),
+          amount: amounts[Math.floor(Math.random() * amounts.length)],
+          currency: "USD",
+          device_id: devices[Math.floor(Math.random() * devices.length)],
+          location: locations[Math.floor(Math.random() * locations.length)],
+          timestamp: new Date().toISOString()
+        };
+
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          const res = await fetch(`${apiUrl}/api/v1/evaluate`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
+            },
+            body: JSON.stringify(simTx)
+          });
+          
+          if (res.ok) {
+            const result = await res.json();
+            
+            setAutoStats(prev => ({
+              ...prev,
+              total: prev.total + 1,
+              analyzed: prev.analyzed + 1,
+              low: ['SAFE', 'LOW'].includes(result.risk_level) ? prev.low + 1 : prev.low,
+              medium: ['SUSPICIOUS', 'MEDIUM'].includes(result.risk_level) ? prev.medium + 1 : prev.medium,
+              high: ['HIGH_RISK', 'CRITICAL', 'HIGH'].includes(result.risk_level) ? prev.high + 1 : prev.high,
+              allowed: result.policy_action === 'ALLOW' ? prev.allowed + 1 : prev.allowed,
+              flagged: ['FLAG', 'REQUIRE_APPROVAL', 'MANUAL_REVIEW'].includes(result.policy_action) ? prev.flagged + 1 : prev.flagged,
+              blocked: ['BLOCK', 'BLOCK_MERCHANT', 'KILL_SWITCH'].includes(result.policy_action) ? prev.blocked + 1 : prev.blocked
+            }));
+
+            setAutoTransactions(prev => [
+              { tx: simTx, result },
+              ...prev
+            ].slice(0, 10));
+          }
+        } catch (e) {
+          console.error("Auto tx failed", e);
+        }
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [autoRunning]);
+
+
   const fetchSystemState = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -184,44 +249,42 @@ export default function Dashboard() {
               <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
                 <h2 className="text-xl font-bold mb-4 text-blue-400">AUTOMATED PROTECTION</h2>
                 <div className="text-sm text-gray-400 mb-4">
-                  When enabled, your application can send transactions automatically to the Risk Manager API for real-time risk evaluation. Transactions must be submitted by the company's software through the integration API.
+                  DEMONSTRATION / SIMULATION MODE. This will automatically generate and process realistic test transactions against the existing risk engine.
                 </div>
                 
-                {systemState ? (
-                  <div className="space-y-4">
-                    <div className={`p-4 rounded-lg font-bold text-center text-lg ${systemState.automated_protection_enabled ? 'bg-green-900 text-green-300 border border-green-700' : 'bg-gray-700 text-gray-400'}`}>
-                      AUTOMATED PROTECTION: {systemState.automated_protection_enabled ? 'ACTIVE' : 'OFF'}
-                    </div>
-                    
-                    {systemState.automated_protection_enabled ? (
-                      <button 
-                        onClick={() => toggleAutomatedProtection(false)}
-                        className="w-full py-3 rounded bg-gray-700 hover:bg-gray-600 text-white font-bold"
-                      >
-                        DISABLE AUTOMATED PROTECTION
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={() => toggleAutomatedProtection(true)}
-                        className="w-full py-3 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold"
-                      >
-                        ENABLE AUTOMATED PROTECTION
-                      </button>
-                    )}
+                <div className="space-y-4">
+                  <div className={`p-4 rounded-lg font-bold text-center text-lg ${autoRunning ? 'bg-green-900 text-green-300 border border-green-700' : 'bg-gray-700 text-gray-400'}`}>
+                    AUTOMATED PROTECTION: {autoRunning ? '🟢 ACTIVE' : '🔴 INACTIVE'}
                   </div>
-                ) : (
-                   <div className="text-gray-500">Loading state...</div>
-                )}
+                  
+                  {autoRunning ? (
+                    <button 
+                      onClick={() => setAutoRunning(false)}
+                      className="w-full py-3 rounded bg-gray-700 hover:bg-gray-600 text-white font-bold"
+                    >
+                      STOP PROTECTION
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => setAutoRunning(true)}
+                      className="w-full py-3 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold"
+                    >
+                      START PROTECTION
+                    </button>
+                  )}
+                </div>
                 
-                <h3 className="mt-8 text-lg font-bold text-cyan-400 mb-2">INTEGRATION STATUS</h3>
-                {systemState ? (
-                  <div className="space-y-2 text-sm font-mono bg-gray-900 p-4 rounded border border-gray-700">
-                    <div className="flex justify-between"><span>API Endpoint:</span> <span className="text-green-400">READY</span></div>
-                    <div className="flex justify-between"><span>Redis Cache:</span> <span className={systemState.redis_status === 'CONNECTED' ? 'text-green-400' : 'text-red-500'}>{systemState.redis_status}</span></div>
-                    <div className="flex justify-between"><span>PostgreSQL:</span> <span className="text-green-400">CONNECTED</span></div>
-                    <div className="flex justify-between"><span>Event Bus:</span> <span className="text-green-400">{systemState.event_bus_status}</span></div>
-                  </div>
-                ) : null}
+                <h3 className="mt-8 text-lg font-bold text-cyan-400 mb-2">DASHBOARD STATS</h3>
+                <div className="space-y-2 text-sm font-mono bg-gray-900 p-4 rounded border border-gray-700">
+                  <div className="flex justify-between"><span>Total Transactions:</span> <span className="text-white">{autoStats.total}</span></div>
+                  <div className="flex justify-between"><span>Analyzed:</span> <span className="text-white">{autoStats.analyzed}</span></div>
+                  <div className="flex justify-between"><span>Low Risk:</span> <span className="text-green-400">{autoStats.low}</span></div>
+                  <div className="flex justify-between"><span>Medium Risk:</span> <span className="text-yellow-400">{autoStats.medium}</span></div>
+                  <div className="flex justify-between"><span>High Risk:</span> <span className="text-red-400">{autoStats.high}</span></div>
+                  <div className="flex justify-between mt-2 pt-2 border-t border-gray-800"><span>Allowed:</span> <span className="text-green-400">{autoStats.allowed}</span></div>
+                  <div className="flex justify-between"><span>Flagged:</span> <span className="text-orange-400">{autoStats.flagged}</span></div>
+                  <div className="flex justify-between"><span>Blocked:</span> <span className="text-red-400">{autoStats.blocked}</span></div>
+                </div>
               </div>
             )}
           </div>
@@ -298,46 +361,26 @@ export default function Dashboard() {
                 )}
               </>
             ) : (
-              <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl h-full">
-                <h2 className="text-xl font-bold mb-4 text-purple-400">INTEGRATION INSTRUCTIONS</h2>
+              <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl h-full overflow-y-auto max-h-[800px]">
+                <h2 className="text-xl font-bold mb-4 text-purple-400">REAL-TIME SIMULATION FEED</h2>
                 
                 <div className="space-y-4 text-sm">
-                  <div>
-                    <h3 className="text-white font-bold">API Endpoint</h3>
-                    <code className="block bg-gray-900 p-2 rounded mt-1 text-green-400">POST /api/v1/transactions/evaluate</code>
-                  </div>
-                  <div>
-                    <h3 className="text-white font-bold">Authentication</h3>
-                    <p className="text-gray-400">Require HTTP header <code className="bg-gray-900 px-1 rounded text-pink-300">X-API-Key: &lt;your_key&gt;</code></p>
-                  </div>
-                  <div>
-                    <h3 className="text-white font-bold">Example Request</h3>
-                    <pre className="bg-gray-900 p-3 rounded text-xs text-blue-300 overflow-x-auto mt-1">
-{`{
-  "transaction_id": "txn_12345",
-  "amount": 25000,
-  "currency": "USD",
-  "user_id": "customer_123",
-  "merchant_id": "merchant_789",
-  "device_id": "dev_456",
-  "location": "US",
-  "timestamp": "2026-08-27T00:00:00Z"
-}`}
-                    </pre>
-                  </div>
-                  <div>
-                    <h3 className="text-white font-bold">Example Response</h3>
-                    <pre className="bg-gray-900 p-3 rounded text-xs text-yellow-300 overflow-x-auto mt-1">
-{`{
-  "transaction_id": "txn_12345",
-  "risk_level": "HIGH",
-  "final_score": 87.5,
-  "policy_action": "BLOCK_MERCHANT",
-  "execution_status": "EXECUTING",
-  "rule_signals": ["High Value Unknown Device"]
-}`}
-                    </pre>
-                  </div>
+                  {autoTransactions.length === 0 ? (
+                     <div className="text-gray-500 italic">Click START PROTECTION to begin receiving transactions.</div>
+                  ) : (
+                     autoTransactions.map((item, idx) => (
+                       <div key={idx} className="bg-gray-900 p-4 rounded border border-gray-700 flex flex-col space-y-1">
+                          <div className="flex justify-between border-b border-gray-800 pb-2 mb-2">
+                             <span className="font-bold text-white">{item.tx.transaction_id}</span>
+                             <span className="text-xs text-blue-400 font-bold border border-blue-400/30 bg-blue-900/20 px-2 py-0.5 rounded">DEMO / SIMULATED TRANSACTION</span>
+                          </div>
+                          <div><span className="text-gray-400">Amount:</span> ${item.tx.amount}</div>
+                          <div><span className="text-gray-400">Risk Score:</span> {item.result.final_score}/100</div>
+                          <div><span className="text-gray-400">Risk:</span> <span className={item.result.risk_level === 'SAFE' || item.result.risk_level === 'LOW' ? 'text-green-400' : item.result.risk_level === 'SUSPICIOUS' || item.result.risk_level === 'MEDIUM' ? 'text-yellow-400' : 'text-red-400'}>{item.result.risk_level}</span></div>
+                          <div><span className="text-gray-400">Decision:</span> <span className={item.result.policy_action === 'ALLOW' ? 'text-green-400' : item.result.policy_action === 'BLOCK' || item.result.policy_action === 'BLOCK_MERCHANT' ? 'text-red-400' : 'text-orange-400'}>{item.result.policy_action}</span></div>
+                       </div>
+                     ))
+                  )}
                 </div>
               </div>
             )}
