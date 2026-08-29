@@ -1,41 +1,90 @@
 "use client";
 import React, { useState, useEffect } from "react";
 
+// Types
+type TxResult = {
+  transaction_id: string;
+  ml_probability: number;
+  rule_signals: string[];
+  final_score: number;
+  risk_level: string;
+  policy_action: string;
+  human_approval_required: boolean;
+  authorization_state: string;
+  execution_status: string;
+  explanation: string;
+  timestamp: string;
+};
+
+type Tx = {
+  transaction_id: string;
+  user_id: string;
+  merchant_id: string;
+  amount: number;
+  currency: string;
+  device_id: string;
+  location: string;
+  timestamp: string;
+};
+
+type FeedItem = {
+  tx: Tx;
+  result: TxResult;
+  status: string; // "PENDING", "SAFE / HUMAN APPROVED", "NOT SAFE / HUMAN REJECTED", "PROCESSED"
+};
+
 export default function Dashboard() {
-  const [tx, setTx] = useState({
-    transaction_id: "TXN-" + Math.floor(Math.random() * 10000),
-    user_id: "USR-123",
-    merchant_id: "MERCH-456",
-    amount: 50.0,
-    currency: "USD",
-    device_id: "DEV-OLD",
-    location: "US",
-    timestamp: new Date().toISOString()
-  });
-
-  const [result, setResult] = useState<any>(null);
-  const [systemState, setSystemState] = useState<any>(null);
-  const [loadingState, setLoadingState] = useState("");
-  const [error, setError] = useState("");
-  const [scenarioDesc, setScenarioDesc] = useState("Select a scenario to populate transaction data.");
-  const [activeTab, setActiveTab] = useState("manual"); // manual | integration
-
+  const [activeTab, setActiveTab] = useState<"dashboard" | "manual">("dashboard");
+  
+  // Dashboard states
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoStats, setAutoStats] = useState({
-    total: 0, analyzed: 0, low: 0, medium: 0, high: 0, allowed: 0, flagged: 0, blocked: 0
+    total: 0, analyzed: 0, low: 0, medium: 0, high: 0, allowed: 0, flagged: 0, blocked: 0, pendingReview: 0
   });
-  const [autoTransactions, setAutoTransactions] = useState<any[]>([]);
+  
+  const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<FeedItem[]>([]);
+  
+  // Manual Analysis state
+  const [manualTx, setManualTx] = useState({
+    transaction_id: "TXN-" + Math.floor(Math.random() * 100000),
+    user_id: "USR-123", merchant_id: "MERCH-456", amount: 50.0,
+    currency: "USD", device_id: "DEV-OLD", location: "US",
+    timestamp: new Date().toISOString()
+  });
+  const [manualResult, setManualResult] = useState<TxResult | null>(null);
+  const [manualLoading, setManualLoading] = useState("");
+  const [manualError, setManualError] = useState("");
+  const [scenarioDesc, setScenarioDesc] = useState("Select a scenario to test different risk profiles.");
 
+  // Fetch / Auth
+  const getHeaders = () => ({
+    "Content-Type": "application/json",
+    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
+    "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
+  });
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  // Evaluator function
+  const evaluateTx = async (txData: Tx) => {
+    const res = await fetch(`${apiUrl}/api/v1/evaluate`, {
+      method: "POST", headers: getHeaders(), body: JSON.stringify(txData)
+    });
+    if (!res.ok) throw new Error("API Error: " + res.status);
+    return await res.json();
+  };
+
+  // Automated Protection Loop
   useEffect(() => {
     let interval: any;
     if (autoRunning) {
       interval = setInterval(async () => {
-        const amounts = [20, 50, 250, 500, 1500, 8000, 50000];
-        const locations = ["US", "US", "UK", "IN", "CN", "RU", "KP"];
+        const amounts = [20, 50, 150, 300, 1500, 8000, 32000, 85000];
+        const locations = ["US", "US", "US", "UK", "IN", "CN", "RU", "KP"];
         const devices = ["DEV-OLD", "DEV-NEW", "DEV-NEW-HACKED"];
         
-        const simTx = {
-          transaction_id: "TXN-" + Math.floor(Math.random() * 100000),
+        const simTx: Tx = {
+          transaction_id: "TXN-" + Math.floor(Math.random() * 1000000),
           user_id: "USR-" + Math.floor(Math.random() * 1000),
           merchant_id: "MERCH-" + Math.floor(Math.random() * 500),
           amount: amounts[Math.floor(Math.random() * amounts.length)],
@@ -46,390 +95,349 @@ export default function Dashboard() {
         };
 
         try {
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-          const res = await fetch(`${apiUrl}/api/v1/evaluate`, {
-            method: "POST",
-            headers: { 
-              "Content-Type": "application/json",
-              "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
-            },
-            body: JSON.stringify(simTx)
-          });
-          
-          if (res.ok) {
-            const result = await res.json();
-            
-            setAutoStats(prev => ({
-              ...prev,
-              total: prev.total + 1,
-              analyzed: prev.analyzed + 1,
-              low: ['SAFE', 'LOW'].includes(result.risk_level) ? prev.low + 1 : prev.low,
-              medium: ['SUSPICIOUS', 'MEDIUM'].includes(result.risk_level) ? prev.medium + 1 : prev.medium,
-              high: ['HIGH_RISK', 'CRITICAL', 'HIGH'].includes(result.risk_level) ? prev.high + 1 : prev.high,
-              allowed: result.policy_action === 'ALLOW' ? prev.allowed + 1 : prev.allowed,
-              flagged: ['FLAG', 'REQUIRE_APPROVAL', 'MANUAL_REVIEW'].includes(result.policy_action) ? prev.flagged + 1 : prev.flagged,
-              blocked: ['BLOCK', 'BLOCK_MERCHANT', 'KILL_SWITCH'].includes(result.policy_action) ? prev.blocked + 1 : prev.blocked
-            }));
+          const result = await evaluateTx(simTx);
+          const needsReview = result.authorization_state === 'PENDING_APPROVAL' || result.policy_action === 'REQUIRE_APPROVAL' || result.policy_action === 'FLAG';
+          const newItem: FeedItem = { tx: simTx, result, status: needsReview ? "PENDING" : "PROCESSED" };
 
-            setAutoTransactions(prev => [
-              { tx: simTx, result },
-              ...prev
-            ].slice(0, 10));
+          setFeed(prev => [newItem, ...prev].slice(0, 50));
+          
+          if (needsReview) {
+            setPendingApprovals(prev => [newItem, ...prev]);
           }
-        } catch (e) {
-          console.error("Auto tx failed", e);
-        }
-      }, 3000);
+
+          setAutoStats(prev => ({
+            ...prev,
+            total: prev.total + 1,
+            analyzed: prev.analyzed + 1,
+            low: ['SAFE', 'LOW'].includes(result.risk_level) ? prev.low + 1 : prev.low,
+            medium: ['SUSPICIOUS', 'MEDIUM'].includes(result.risk_level) ? prev.medium + 1 : prev.medium,
+            high: ['HIGH_RISK', 'CRITICAL', 'HIGH'].includes(result.risk_level) ? prev.high + 1 : prev.high,
+            allowed: result.policy_action === 'ALLOW' ? prev.allowed + 1 : prev.allowed,
+            flagged: needsReview ? prev.flagged + 1 : prev.flagged,
+            blocked: ['BLOCK', 'BLOCK_MERCHANT', 'KILL_SWITCH'].includes(result.policy_action) ? prev.blocked + 1 : prev.blocked,
+            pendingReview: needsReview ? prev.pendingReview + 1 : prev.pendingReview
+          }));
+        } catch (e) { console.error("Sim error", e); }
+      }, 3500);
     }
     return () => clearInterval(interval);
   }, [autoRunning]);
 
-
-  const fetchSystemState = async () => {
+  // Handle Human Approval
+  const resolveTransaction = async (txId: string, action: "APPROVE" | "REJECT") => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${apiUrl}/api/v1/system/trace`, {
-        headers: {
-          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
-          "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
-        }
+      const res = await fetch(`${apiUrl}/api/v1/transactions/${txId}/resolve`, {
+        method: "POST", headers: getHeaders(), body: JSON.stringify({ action, reason: "Human review via Dashboard" })
       });
-      if (res.ok) setSystemState(await res.json());
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    fetchSystemState();
-    const interval = setInterval(fetchSystemState, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const analyze = async () => {
-    setLoadingState("ANALYZING TRANSACTION...");
-    setError("");
-    setResult(null);
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${apiUrl}/api/v1/evaluate`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
-        },
-        body: JSON.stringify(tx)
-      });
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) setError("Administrative authorization required.");
-        else if (res.status === 503) setError("Risk evaluation service temporarily unavailable. No transaction was executed.");
-        else setError(`Request failed with status ${res.status}`);
-      } else {
+      if (res.ok) {
         const data = await res.json();
-        setResult(data);
-        if (data.execution_status === 'IDEMPOTENT_DUPLICATE') {
-          setError("This transaction has already been processed. Duplicate execution was prevented.");
-        } else if (data.authorization_state === 'PENDING_APPROVAL' && data.execution_status === 'KILL_SWITCH_ACTIVE') {
-          setError("Autonomous actions are currently disabled by the administrator.");
-        }
+        // Update Feed
+        setFeed(prev => prev.map(item => item.tx.transaction_id === txId ? { ...item, status: data.status } : item));
+        // Remove from pending
+        setPendingApprovals(prev => prev.filter(item => item.tx.transaction_id !== txId));
+        // Update Stats
+        setAutoStats(prev => ({ ...prev, pendingReview: Math.max(0, prev.pendingReview - 1) }));
       }
-      fetchSystemState();
-    } catch (e) {
-      console.error(e);
-      setError("Network error. Risk evaluation service temporarily unavailable.");
-    }
-    setLoadingState("");
-  };
-
-  const setScenario = (type: string) => {
-    const baseTx = { ...tx, transaction_id: "TXN-" + Math.floor(Math.random() * 10000), timestamp: new Date().toISOString() };
-    if (type === "SAFE") {
-      setTx({ ...baseTx, amount: 20, location: "US", device_id: "DEV-OLD", user_id: "USR-1" });
-      setScenarioDesc("Normal transaction — trusted device, normal amount, normal location.");
-    } else if (type === "SUSPICIOUS") {
-      setTx({ ...baseTx, amount: 2500, location: "RU", device_id: "DEV-NEW", user_id: "USR-1" });
-      setScenarioDesc("New device + unusual transaction pattern.");
-    } else if (type === "HIGH_RISK") {
-      setTx({ ...baseTx, amount: 8000, location: "KP", device_id: "DEV-NEW", user_id: "USR-2" });
-      setScenarioDesc("High-risk transaction requiring human approval.");
-    } else if (type === "CRITICAL") {
-      setTx({ ...baseTx, amount: 50000, location: "KP", device_id: "DEV-NEW-HACKED", user_id: "USR-99" });
-      setScenarioDesc("Critical transaction blocked by policy.");
+    } catch(e) {
+      console.error("Resolution failed", e);
     }
   };
 
-  const toggleKillSwitch = async (active: boolean) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    await fetch(`${apiUrl}/api/v1/system/kill-switch`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
-        "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
-      },
-      body: JSON.stringify({ active })
-    });
-    fetchSystemState();
+  // Manual Analysis
+  const runManualAnalysis = async () => {
+    setManualLoading("Analyzing..."); setManualError(""); setManualResult(null);
+    try {
+      const res = await evaluateTx(manualTx);
+      setManualResult(res);
+    } catch (e: any) { setManualError(e.message); }
+    setManualLoading("");
   };
 
-  const toggleAutomatedProtection = async (active: boolean) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    await fetch(`${apiUrl}/api/v1/integration/automation-state`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
-        "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
-      },
-      body: JSON.stringify({ active })
-    });
-    fetchSystemState();
+  // Theme Colors
+  const getRiskColor = (level: string) => {
+    if (['SAFE', 'LOW'].includes(level)) return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+    if (['SUSPICIOUS', 'MEDIUM'].includes(level)) return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+    return 'text-rose-500 bg-rose-500/10 border-rose-500/20';
+  };
+  
+  const getDecisionColor = (action: string, status: string) => {
+    if (status.includes("APPROVED") || action === 'ALLOW') return 'text-emerald-400';
+    if (status.includes("REJECTED") || ['BLOCK', 'BLOCK_MERCHANT'].includes(action)) return 'text-rose-500';
+    return 'text-amber-400';
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6 font-sans">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex space-x-4 mb-6 border-b border-gray-700 pb-2">
-          <button 
-            className={`font-bold px-4 py-2 ${activeTab === 'manual' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
-            onClick={() => setActiveTab('manual')}
-          >
-            Manual Analysis
-          </button>
-          <button 
-            className={`font-bold px-4 py-2 ${activeTab === 'integration' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-500 hover:text-gray-300'}`}
-            onClick={() => setActiveTab('integration')}
-          >
-            Integration & Automated Protection
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="min-h-screen bg-[#0A0E17] text-slate-300 font-sans selection:bg-indigo-500/30">
+      {/* HEADER */}
+      <header className="border-b border-slate-800 bg-[#0F1420] sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded bg-indigo-500 flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]">
+              AI
+            </div>
+            <h1 className="text-xl font-bold tracking-tight text-white">Risk Manager <span className="text-indigo-400 font-medium">Enterprise</span></h1>
+          </div>
           
-          {/* Left Column */}
-          <div className="lg:col-span-1 space-y-6">
-            {activeTab === 'manual' ? (
-              <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-                <h2 className="text-xl font-bold mb-4 text-blue-400">TRANSACTION ANALYZER</h2>
-                
-                <div className="text-xs font-bold text-gray-500 mb-2 uppercase">Test Transactions</div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <button onClick={() => setScenario('SAFE')} className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Generate Normal Transaction</button>
-                  <button onClick={() => setScenario('SUSPICIOUS')} className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Generate Suspicious Transaction</button>
-                  <button onClick={() => setScenario('HIGH_RISK')} className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Generate High-Risk Transaction</button>
-                  <button onClick={() => setScenario('CRITICAL')} className="text-xs px-2 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600">Generate Critical Transaction</button>
-                </div>
-                
-                <div className="mb-6 text-sm text-gray-400 italic border-l-4 border-blue-500 pl-3">
-                  {scenarioDesc}
-                </div>
-
-                <div className="space-y-3 text-sm">
-                  {Object.keys(tx).map(k => (
-                    <div key={k}>
-                      <label className="block text-gray-400 text-xs uppercase">{k}</label>
-                      <input 
-                        className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 mt-1 focus:outline-none focus:border-blue-500 text-gray-100"
-                        value={(tx as any)[k]} 
-                        onChange={e => setTx({...tx, [k]: e.target.value})} 
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <button 
-                  onClick={analyze} 
-                  disabled={!!loadingState}
-                  className={`w-full mt-6 text-white font-bold py-3 rounded transition-colors ${loadingState ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-500'}`}
-                >
-                  {loadingState || "ANALYZE TRANSACTION"}
-                </button>
-              </div>
-            ) : (
-              <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-                <h2 className="text-xl font-bold mb-4 text-blue-400">AUTOMATED PROTECTION</h2>
-                <div className="text-sm text-gray-400 mb-4">
-                  DEMONSTRATION / SIMULATION MODE. This will automatically generate and process realistic test transactions against the existing risk engine.
-                </div>
-                
-                <div className="space-y-4">
-                  <div className={`p-4 rounded-lg font-bold text-center text-lg ${autoRunning ? 'bg-green-900 text-green-300 border border-green-700' : 'bg-gray-700 text-gray-400'}`}>
-                    AUTOMATED PROTECTION: {autoRunning ? '🟢 ACTIVE' : '🔴 INACTIVE'}
-                  </div>
-                  
-                  {autoRunning ? (
-                    <button 
-                      onClick={() => setAutoRunning(false)}
-                      className="w-full py-3 rounded bg-gray-700 hover:bg-gray-600 text-white font-bold"
-                    >
-                      STOP PROTECTION
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => setAutoRunning(true)}
-                      className="w-full py-3 rounded bg-blue-600 hover:bg-blue-500 text-white font-bold"
-                    >
-                      START PROTECTION
-                    </button>
-                  )}
-                </div>
-                
-                <h3 className="mt-8 text-lg font-bold text-cyan-400 mb-2">DASHBOARD STATS</h3>
-                <div className="space-y-2 text-sm font-mono bg-gray-900 p-4 rounded border border-gray-700">
-                  <div className="flex justify-between"><span>Total Transactions:</span> <span className="text-white">{autoStats.total}</span></div>
-                  <div className="flex justify-between"><span>Analyzed:</span> <span className="text-white">{autoStats.analyzed}</span></div>
-                  <div className="flex justify-between"><span>Low Risk:</span> <span className="text-green-400">{autoStats.low}</span></div>
-                  <div className="flex justify-between"><span>Medium Risk:</span> <span className="text-yellow-400">{autoStats.medium}</span></div>
-                  <div className="flex justify-between"><span>High Risk:</span> <span className="text-red-400">{autoStats.high}</span></div>
-                  <div className="flex justify-between mt-2 pt-2 border-t border-gray-800"><span>Allowed:</span> <span className="text-green-400">{autoStats.allowed}</span></div>
-                  <div className="flex justify-between"><span>Flagged:</span> <span className="text-orange-400">{autoStats.flagged}</span></div>
-                  <div className="flex justify-between"><span>Blocked:</span> <span className="text-red-400">{autoStats.blocked}</span></div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Center Column: Results or Integration Docs */}
-          <div className="lg:col-span-1 space-y-6">
-            {activeTab === 'manual' ? (
-              <>
-                {error && (
-                  <div className="bg-red-900/50 border border-red-700 text-red-200 p-4 rounded-lg shadow-xl text-sm mb-4">
-                    <span className="font-bold block mb-1">Notice:</span>
-                    {error}
-                  </div>
-                )}
-                {result ? (
-                  <>
-                    <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-                      <h2 className="text-xl font-bold mb-4 text-blue-400">RISK RESULT</h2>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-gray-400 text-xs">FRAUD PROBABILITY</div>
-                          <div className="text-2xl font-mono">{(result.ml_probability * 100).toFixed(1)}%</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400 text-xs">RISK SCORE</div>
-                          <div className="text-2xl font-mono">{result.final_score}/100</div>
-                        </div>
-                      </div>
-                      <div className="mt-4 p-4 rounded text-center font-bold text-lg bg-gray-900 border border-gray-700">
-                        <span className={result.risk_level === 'SAFE' ? 'text-green-400' : result.risk_level === 'CRITICAL' ? 'text-red-500' : 'text-yellow-400'}>
-                          {result.risk_level}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-                      <h2 className="text-xl font-bold mb-4 text-purple-400">POLICY DECISION</h2>
-                      <div className="space-y-2">
-                        <div className="flex justify-between border-b border-gray-700 pb-2">
-                          <span className="text-gray-400">Policy Action</span>
-                          <span className="font-mono">{result.policy_action}</span>
-                        </div>
-                        <div className="flex justify-between border-b border-gray-700 pb-2">
-                          <span className="text-gray-400">Authorization State</span>
-                          <span className="font-mono text-blue-300">{result.authorization_state}</span>
-                        </div>
-                        <div className="flex justify-between border-b border-gray-700 pb-2">
-                          <span className="text-gray-400">Execution Status</span>
-                          <span className="font-mono">{result.execution_status}</span>
-                        </div>
-                        {result.human_approval_required && (
-                          <div className="mt-4 bg-orange-900 text-orange-200 p-3 rounded font-bold text-center animate-pulse">
-                            HUMAN APPROVAL REQUIRED
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-                      <h2 className="text-xl font-bold mb-4 text-red-400">RISK SIGNALS</h2>
-                      {result.rule_signals?.length > 0 ? (
-                        <ul className="list-disc pl-5 space-y-1 text-red-300 font-mono text-sm">
-                          {result.rule_signals.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                        </ul>
-                      ) : (
-                        <div className="text-gray-500 italic">No deterministic signals triggered.</div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 h-full flex items-center justify-center text-gray-500">
-                      Submit a transaction to see results.
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl h-full overflow-y-auto max-h-[800px]">
-                <h2 className="text-xl font-bold mb-4 text-purple-400">REAL-TIME SIMULATION FEED</h2>
-                
-                <div className="space-y-4 text-sm">
-                  {autoTransactions.length === 0 ? (
-                     <div className="text-gray-500 italic">Click START PROTECTION to begin receiving transactions.</div>
-                  ) : (
-                     autoTransactions.map((item, idx) => (
-                       <div key={idx} className="bg-gray-900 p-4 rounded border border-gray-700 flex flex-col space-y-1">
-                          <div className="flex justify-between border-b border-gray-800 pb-2 mb-2">
-                             <span className="font-bold text-white">{item.tx.transaction_id}</span>
-                             <span className="text-xs text-blue-400 font-bold border border-blue-400/30 bg-blue-900/20 px-2 py-0.5 rounded">DEMO / SIMULATED TRANSACTION</span>
-                          </div>
-                          <div><span className="text-gray-400">Amount:</span> ${item.tx.amount}</div>
-                          <div><span className="text-gray-400">Risk Score:</span> {item.result.final_score}/100</div>
-                          <div><span className="text-gray-400">Risk:</span> <span className={item.result.risk_level === 'SAFE' || item.result.risk_level === 'LOW' ? 'text-green-400' : item.result.risk_level === 'SUSPICIOUS' || item.result.risk_level === 'MEDIUM' ? 'text-yellow-400' : 'text-red-400'}>{item.result.risk_level}</span></div>
-                          <div><span className="text-gray-400">Decision:</span> <span className={item.result.policy_action === 'ALLOW' ? 'text-green-400' : item.result.policy_action === 'BLOCK' || item.result.policy_action === 'BLOCK_MERCHANT' ? 'text-red-400' : 'text-orange-400'}>{item.result.policy_action}</span></div>
-                       </div>
-                     ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: System Status */}
-          <div className="lg:col-span-1 space-y-6">
-            <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-              <h2 className="text-xl font-bold mb-4 text-cyan-400">SYSTEM HEALTH & CONTROLS</h2>
-              {systemState ? (
-                <div className="space-y-2 text-sm font-mono">
-                  <div className="flex justify-between"><span>System Mode:</span> <span className={systemState.system_state === 'NORMAL' ? 'text-green-400' : 'text-red-500'}>{systemState.system_state}</span></div>
-                  <div className="flex justify-between"><span>Redis Broker:</span> <span className="text-green-400">{systemState.redis_status}</span></div>
-                  <div className="flex justify-between"><span>Event Bus:</span> <span className="text-green-400">{systemState.event_bus_status}</span></div>
-                  
-                  <div className="mt-6 border-t border-gray-700 pt-4">
-                    <h3 className="text-xs text-gray-400 mb-2">ADMIN CONTROLS</h3>
-                    <button 
-                      onClick={() => toggleKillSwitch(systemState.system_state === 'NORMAL')}
-                      className={`w-full py-2 rounded text-xs font-bold transition-colors ${systemState.system_state === 'NORMAL' ? 'bg-red-900 text-red-200 hover:bg-red-800' : 'bg-green-900 text-green-200 hover:bg-green-800'}`}
-                    >
-                      {systemState.system_state === 'NORMAL' ? 'ACTIVATE KILL SWITCH' : 'DEACTIVATE KILL SWITCH'}
-                    </button>
-                  </div>
-                </div>
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2 text-sm font-medium">
+              <span className="text-slate-400">System Status:</span>
+              {autoRunning ? (
+                <span className="flex items-center text-emerald-400"><span className="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>PROTECTION ACTIVE</span>
               ) : (
-                <div className="text-gray-500">Loading system state...</div>
+                <span className="flex items-center text-slate-500"><span className="w-2 h-2 rounded-full bg-slate-500 mr-2"></span>PROTECTION OFF</span>
               )}
             </div>
+            <div className="h-6 w-px bg-slate-700"></div>
+            <nav className="flex space-x-1">
+              <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>AUTOMATED</button>
+              <button onClick={() => setActiveTab('manual')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'manual' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}>MANUAL</button>
+            </nav>
+          </div>
+        </div>
+      </header>
 
-            <div className="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-              <h2 className="text-xl font-bold mb-4 text-emerald-400">SYSTEM TRACE (AUDIT)</h2>
-              <div className="space-y-3 font-mono text-xs">
-                {systemState?.recent_events?.length > 0 ? (
-                  [...systemState.recent_events].reverse().map((ev: any, i: number) => (
-                    <div key={i} className="border-l-2 border-emerald-500 pl-2 py-1 bg-gray-900 rounded">
-                      <div className="text-emerald-400 font-bold">{ev.event_type}</div>
-                      <div className="text-gray-500 truncate">ID: {ev.correlation_id}</div>
-                      <div className="text-gray-400 mt-1 truncate">{JSON.stringify(ev.payload).substring(0, 100)}...</div>
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {activeTab === 'dashboard' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            {/* METRICS ROW */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <MetricCard title="Total Analyzed" value={autoStats.total} />
+              <MetricCard title="High Risk Blocked" value={autoStats.blocked} color="text-rose-500" />
+              <MetricCard title="Safe Transactions" value={autoStats.allowed} color="text-emerald-400" />
+              <MetricCard title="Pending Review" value={autoStats.pendingReview} color="text-amber-400" highlight={autoStats.pendingReview > 0} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* LEFT COLUMN: CONTROL & FEED */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* AUTOMATION CONTROL */}
+                <div className="bg-[#131927] border border-slate-800 rounded-xl p-6 shadow-xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-50"></div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold text-white mb-1">Protection Engine</h2>
+                      <p className="text-sm text-slate-400">Autonomous threat detection & response</p>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-gray-500 italic">No recent events.</div>
-                )}
+                    {autoRunning ? (
+                      <button onClick={() => setAutoRunning(false)} className="px-6 py-2.5 rounded-lg font-bold text-white bg-rose-500 hover:bg-rose-600 transition-colors shadow-[0_0_20px_rgba(244,63,94,0.3)]">
+                        STOP PROTECTION
+                      </button>
+                    ) : (
+                      <button onClick={() => setAutoRunning(true)} className="px-6 py-2.5 rounded-lg font-bold text-white bg-indigo-500 hover:bg-indigo-600 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)]">
+                        START PROTECTION
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* LIVE FEED */}
+                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[600px]">
+                  <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-[#0F1420]">
+                    <h2 className="text-lg font-bold text-white">Live Transaction Feed</h2>
+                    {autoRunning && <span className="flex h-3 w-3 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span></span>}
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {feed.length === 0 ? (
+                      <div className="h-full flex items-center justify-center flex-col text-slate-500 space-y-2">
+                        <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-700 animate-[spin_4s_linear_infinite]"></div>
+                        <p>Waiting for transaction stream...</p>
+                      </div>
+                    ) : (
+                      feed.map((item, i) => (
+                        <div key={i} className="bg-[#1A2234] border border-slate-700/50 rounded-lg p-4 transition-all hover:border-slate-600 group">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center space-x-3">
+                              <span className="font-mono text-white font-medium">{item.tx.transaction_id}</span>
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm bg-slate-800 text-slate-400">DEMO / SIMULATED</span>
+                            </div>
+                            <span className="text-xs text-slate-500">{new Date(item.result.timestamp).toLocaleTimeString()}</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <div className="text-slate-500 text-xs mb-1">Amount</div>
+                              <div className="font-mono text-slate-200">${item.tx.amount.toLocaleString()}</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-500 text-xs mb-1">Risk Score</div>
+                              <div className="font-mono text-slate-200">{item.result.final_score}/100</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-500 text-xs mb-1">Level</div>
+                              <div className={`inline-flex px-2 py-0.5 rounded text-xs font-bold uppercase ${getRiskColor(item.result.risk_level)}`}>
+                                {item.result.risk_level}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-slate-500 text-xs mb-1">Decision / Status</div>
+                              <div className={`font-bold uppercase ${getDecisionColor(item.result.policy_action, item.status)}`}>
+                                {item.status === 'PENDING' ? 'PENDING HUMAN REVIEW' : item.status === 'PROCESSED' ? item.result.policy_action : item.status}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN: APPROVAL QUEUE */}
+              <div className="lg:col-span-1">
+                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[700px]">
+                  <div className="px-6 py-4 border-b border-rose-900/30 bg-rose-950/10 flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-rose-400 flex items-center">
+                      ⚠ Human Approval Queue
+                    </h2>
+                    {pendingApprovals.length > 0 && (
+                      <span className="bg-rose-500 text-white text-xs font-bold px-2 py-1 rounded-full">{pendingApprovals.length}</span>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {pendingApprovals.length === 0 ? (
+                      <div className="text-center text-slate-500 py-10">
+                        <p>No transactions pending review.</p>
+                      </div>
+                    ) : (
+                      pendingApprovals.map((item, i) => (
+                        <div key={i} className="bg-[#1A2234] border border-rose-900/50 rounded-lg p-5 shadow-lg relative overflow-hidden animate-in slide-in-from-right-4">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-rose-500"></div>
+                          <div className="flex justify-between items-start mb-4">
+                            <span className="font-mono text-white font-bold">{item.tx.transaction_id}</span>
+                            <span className="font-mono text-lg text-rose-400">${item.tx.amount.toLocaleString()}</span>
+                          </div>
+                          
+                          <div className="mb-4">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-slate-400">Risk Score</span>
+                              <span className="text-rose-400 font-bold">{item.result.final_score}/100</span>
+                            </div>
+                            <div className="w-full bg-slate-800 rounded-full h-1.5">
+                              <div className="bg-gradient-to-r from-amber-400 to-rose-500 h-1.5 rounded-full" style={{ width: `${item.result.final_score}%` }}></div>
+                            </div>
+                          </div>
+                          
+                          <div className="text-xs text-slate-400 mb-5 space-y-1">
+                            <p className="font-semibold text-slate-300 mb-2">Risk Factors:</p>
+                            {item.result.rule_signals.slice(0,3).map((sig, idx) => (
+                              <div key={idx} className="flex items-start"><span className="text-rose-500 mr-2">•</span>{sig}</div>
+                            ))}
+                          </div>
+                          
+                          <div className="flex space-x-3">
+                            <button onClick={() => resolveTransaction(item.tx.transaction_id, "APPROVE")} className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 py-2 rounded font-bold text-xs transition-colors flex justify-center items-center">
+                              ✓ APPROVE
+                            </button>
+                            <button onClick={() => resolveTransaction(item.tx.transaction_id, "REJECT")} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-2 rounded font-bold text-xs transition-colors flex justify-center items-center shadow-lg shadow-rose-500/20">
+                              ✕ REJECT
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        )}
+
+        {/* MANUAL TAB */}
+        {activeTab === 'manual' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in duration-500">
+            <div className="bg-[#131927] border border-slate-800 rounded-xl p-8 shadow-xl">
+              <h2 className="text-xl font-bold mb-6 text-white border-b border-slate-800 pb-4">Manual Transaction Analysis</h2>
+              
+              <div className="flex space-x-2 mb-8">
+                <button onClick={() => {setManualTx({...manualTx, amount: 20, location: "US", device_id: "DEV-OLD"}); setScenarioDesc("Safe profile: normal amount, trusted device.");}} className="text-xs px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 border border-slate-700">SAFE</button>
+                <button onClick={() => {setManualTx({...manualTx, amount: 2500, location: "RU", device_id: "DEV-NEW"}); setScenarioDesc("Suspicious: high amount, foreign IP, new device.");}} className="text-xs px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 border border-slate-700">SUSPICIOUS</button>
+                <button onClick={() => {setManualTx({...manualTx, amount: 8000, location: "KP", device_id: "DEV-NEW"}); setScenarioDesc("High Risk: sanctioned location, very high amount.");}} className="text-xs px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 border border-slate-700">HIGH RISK</button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                {Object.keys(manualTx).map(k => (
+                  <div key={k} className={k === 'timestamp' || k === 'transaction_id' ? 'col-span-2' : 'col-span-1'}>
+                    <label className="block text-slate-500 text-xs font-bold uppercase tracking-wider mb-1.5">{k.replace('_', ' ')}</label>
+                    <input 
+                      className="w-full bg-[#0A0E17] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                      value={(manualTx as any)[k]} 
+                      onChange={e => setManualTx({...manualTx, [k]: e.target.value})} 
+                    />
+                  </div>
+                ))}
+              </div>
+              
+              <button onClick={runManualAnalysis} disabled={!!manualLoading} className="w-full py-3.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-bold shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all disabled:opacity-50 flex justify-center items-center">
+                {manualLoading ? <span className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full"></span> : "ANALYZE TRANSACTION"}
+              </button>
+            </div>
+
+            <div className="bg-[#131927] border border-slate-800 rounded-xl p-8 shadow-xl">
+              <h2 className="text-xl font-bold mb-6 text-white border-b border-slate-800 pb-4">Analysis Results</h2>
+              {manualError && <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-sm mb-6">{manualError}</div>}
+              
+              {!manualResult && !manualLoading && !manualError && (
+                <div className="h-64 flex items-center justify-center text-slate-500 flex-col">
+                  Submit a transaction to view comprehensive risk breakdown.
+                </div>
+              )}
+
+              {manualResult && (
+                <div className="space-y-8 animate-in slide-in-from-bottom-4">
+                  <div>
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-slate-400 font-medium">Composite Risk Score</span>
+                      <span className="text-3xl font-mono text-white">{manualResult.final_score}<span className="text-slate-500 text-xl">/100</span></span>
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-2">
+                      <div className={`h-2 rounded-full ${manualResult.final_score < 40 ? 'bg-emerald-400' : manualResult.final_score < 75 ? 'bg-amber-400' : 'bg-rose-500'}`} style={{ width: `${manualResult.final_score}%` }}></div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-[#0A0E17] border border-slate-800 rounded-lg">
+                      <div className="text-xs text-slate-500 uppercase font-bold mb-1">Risk Level</div>
+                      <div className={`font-bold ${getRiskColor(manualResult.risk_level).split(' ')[0]}`}>{manualResult.risk_level}</div>
+                    </div>
+                    <div className="p-4 bg-[#0A0E17] border border-slate-800 rounded-lg">
+                      <div className="text-xs text-slate-500 uppercase font-bold mb-1">Policy Action</div>
+                      <div className={`font-bold ${getDecisionColor(manualResult.policy_action, "")}`}>{manualResult.policy_action}</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase mb-3 pb-2 border-b border-slate-800">Risk Signals</h3>
+                    {manualResult.rule_signals.length > 0 ? (
+                      <ul className="space-y-2">
+                        {manualResult.rule_signals.map((s: string, i: number) => (
+                          <li key={i} className="flex items-start text-sm text-slate-300">
+                            <span className="text-amber-500 mr-2 mt-0.5">⚠</span>{s}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-slate-500 text-sm">No abnormal signals detected.</p>
+                    )}
+                  </div>
+                  
+                  <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-200 text-sm">
+                    <strong>Explanation:</strong> {manualResult.explanation}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
+
+const MetricCard = ({ title, value, color = "text-white", highlight = false }: { title: string, value: number, color?: string, highlight?: boolean }) => (
+  <div className={`bg-[#131927] border ${highlight ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-slate-800'} p-5 rounded-xl`}>
+    <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">{title}</h3>
+    <p className={`text-3xl font-mono ${color}`}>{value}</p>
+  </div>
+);

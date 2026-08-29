@@ -255,6 +255,46 @@ def evaluate_transaction_automated(payload: TransactionPayload, auth_context: di
     # We will pass the tenant_id to the evaluate_transaction function
     return evaluate_transaction(payload, api_key="placeholder", tenant_id=tenant_id, db=db)
 
+class ResolutionPayload(BaseModel):
+    action: str
+    reason: str = "Human review"
+
+@router.post("/transactions/{transaction_id}/resolve")
+def resolve_transaction(
+    transaction_id: str, 
+    payload: ResolutionPayload, 
+    auth_payload: dict = Depends(require_roles([Role.ADMIN, Role.ANALYST, Role.OPERATOR])),
+    db: Session = Depends(get_db)
+):
+    user_id = auth_payload.get("sub", "unknown")
+    
+    from app.models.transaction import Transaction
+    tx = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    if not tx:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+        
+    final_status = "SAFE / HUMAN APPROVED" if payload.action == "APPROVE" else "NOT SAFE / HUMAN REJECTED"
+    tx.status = final_status
+    db.commit()
+    
+    audit_event = EventSchema(
+        event_id=str(uuid.uuid4()),
+        event_type="HumanApprovalDecision",
+        correlation_id=str(uuid.uuid4()),
+        payload={
+            "transaction_id": transaction_id,
+            "actor": user_id,
+            "decision": payload.action,
+            "reason": payload.reason,
+            "status": final_status,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        },
+        producer="FastAPI_Router"
+    )
+    bus.publish(audit_event)
+    
+    return {"transaction_id": transaction_id, "status": final_status}
+
 @router.post("/webhooks/transactions")
 def evaluate_transaction_webhook(
     raw_payload: Dict[str, Any], 
