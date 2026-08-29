@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<FeedItem[]>([]);
   const [resolvedApprovals, setResolvedApprovals] = useState<(FeedItem & { action: "APPROVE" | "REJECT" })[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   
   // Manual Analysis state
   const [manualTx, setManualTx] = useState({
@@ -238,7 +239,7 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* LEFT COLUMN: CONTROL & FEED */}
-              <div className="lg:col-span-2 space-y-6">
+              <div className="lg:col-span-2 flex flex-col space-y-6">
                 
                 {/* AUTOMATION CONTROL */}
                 <div className="bg-[#131927] border border-slate-800 rounded-xl p-6 shadow-xl relative overflow-hidden">
@@ -261,19 +262,34 @@ export default function Dashboard() {
                 </div>
 
                 {/* LIVE FEED */}
-                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[600px]">
+                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col flex-1 min-h-[600px]">
                   <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-[#0F1420]">
-                    <h2 className="text-lg font-bold text-white">Live Transaction Feed</h2>
+                    <div className="flex items-center space-x-4">
+                      <h2 className="text-lg font-bold text-white">Live Transaction Feed</h2>
+                      <input 
+                        type="text" 
+                        placeholder="Search TXN ID..." 
+                        className="bg-[#1A2234] border border-slate-700 rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 w-48 font-mono"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                      />
+                    </div>
                     {autoRunning && <span className="flex h-3 w-3 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span></span>}
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 space-y-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                    {feed.length === 0 ? (
+                    {feed.filter(item => item.tx.transaction_id.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
                       <div className="h-full flex items-center justify-center flex-col text-slate-500 space-y-2">
-                        <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-700 animate-[spin_4s_linear_infinite]"></div>
-                        <p>Waiting for transaction stream...</p>
+                        {feed.length === 0 ? (
+                          <>
+                            <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-700 animate-[spin_4s_linear_infinite]"></div>
+                            <p>Waiting for transaction stream...</p>
+                          </>
+                        ) : (
+                          <p>No transactions found matching "{searchQuery}"</p>
+                        )}
                       </div>
                     ) : (
-                      feed.map((item, i) => (
+                      feed.filter(item => item.tx.transaction_id.toLowerCase().includes(searchQuery.toLowerCase())).map((item, i) => (
                         <div key={i} className="bg-[#1A2234] border border-slate-700/50 rounded-lg p-4 transition-all hover:border-slate-600 group">
                           <div className="flex justify-between items-start mb-3">
                             <div className="flex items-center space-x-3">
@@ -556,6 +572,27 @@ export default function Dashboard() {
                   <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-indigo-200 text-sm">
                     <strong>Explanation:</strong> {manualResult.explanation}
                   </div>
+                  
+                  {(manualResult.authorization_state === 'PENDING_APPROVAL' || manualResult.policy_action === 'REQUIRE_APPROVAL' || manualResult.policy_action === 'FLAG') && (
+                    <div className="flex space-x-3 pt-6 mt-6 border-t border-slate-800">
+                      <button onClick={() => {
+                        const newItem: FeedItem = { tx: manualTx as Tx, result: manualResult, status: "PENDING" };
+                        setPendingApprovals(prev => [newItem, ...prev]);
+                        resolveTransaction(manualTx.transaction_id, "APPROVE");
+                        setActiveTab("dashboard");
+                      }} className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 py-3 rounded-lg font-bold text-sm transition-colors flex justify-center items-center">
+                        ✓ APPROVE & VIEW
+                      </button>
+                      <button onClick={() => {
+                        const newItem: FeedItem = { tx: manualTx as Tx, result: manualResult, status: "PENDING" };
+                        setPendingApprovals(prev => [newItem, ...prev]);
+                        resolveTransaction(manualTx.transaction_id, "REJECT");
+                        setActiveTab("dashboard");
+                      }} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-lg font-bold text-sm transition-colors flex justify-center items-center shadow-lg shadow-rose-500/20">
+                        ✕ REJECT & VIEW
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
