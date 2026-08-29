@@ -261,7 +261,7 @@ export default function Dashboard() {
                     <h2 className="text-lg font-bold text-white">Live Transaction Feed</h2>
                     {autoRunning && <span className="flex h-3 w-3 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span></span>}
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {feed.length === 0 ? (
                       <div className="h-full flex items-center justify-center flex-col text-slate-500 space-y-2">
                         <div className="w-12 h-12 rounded-full border-2 border-dashed border-slate-700 animate-[spin_4s_linear_infinite]"></div>
@@ -319,7 +319,7 @@ export default function Dashboard() {
                     )}
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {pendingApprovals.length === 0 ? (
                       <div className="text-center text-slate-500 py-10">
                         <p>No transactions pending review.</p>
@@ -399,7 +399,7 @@ export default function Dashboard() {
                 {/* SYSTEM TRACE (AUDIT) */}
                 <div className="bg-[#131927] border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col max-h-[300px]">
                   <h2 className="text-sm font-bold mb-3 text-emerald-400 uppercase tracking-wider">System Trace (Audit)</h2>
-                  <div className="overflow-y-auto flex-1 space-y-2 font-mono text-[10px]">
+                  <div className="overflow-y-auto flex-1 space-y-2 font-mono text-[10px] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {systemState?.recent_events?.length > 0 ? (
                       [...systemState.recent_events].map((ev: any, i: number) => (
                         <div key={i} className="border-l-2 border-emerald-500/50 pl-2 py-1 bg-[#1A2234] rounded">
