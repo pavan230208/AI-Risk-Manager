@@ -425,9 +425,24 @@ export default function Dashboard() {
               <h2 className="text-xl font-bold mb-6 text-white border-b border-slate-800 pb-4">Manual Transaction Analysis</h2>
               
               <div className="flex space-x-2 mb-8">
-                <button onClick={() => {setManualTx({...manualTx, amount: 20, location: "US", device_id: "DEV-OLD"}); setScenarioDesc("Safe profile: normal amount, trusted device.");}} className="text-xs px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 border border-slate-700">SAFE</button>
-                <button onClick={() => {setManualTx({...manualTx, amount: 2500, location: "RU", device_id: "DEV-NEW"}); setScenarioDesc("Suspicious: high amount, foreign IP, new device.");}} className="text-xs px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 border border-slate-700">SUSPICIOUS</button>
-                <button onClick={() => {setManualTx({...manualTx, amount: 8000, location: "KP", device_id: "DEV-NEW"}); setScenarioDesc("High Risk: sanctioned location, very high amount.");}} className="text-xs px-3 py-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700 border border-slate-700">HIGH RISK</button>
+                <button onClick={() => {
+                  const amounts = [20, 50, 150, 300, 1500, 8000, 32000, 85000];
+                  const locations = ["US", "US", "US", "UK", "IN", "CN", "RU", "KP"];
+                  const devices = ["DEV-OLD", "DEV-NEW", "DEV-NEW-HACKED"];
+                  setManualTx({
+                    transaction_id: "TXN-" + Math.floor(Math.random() * 1000000),
+                    user_id: "USR-" + Math.floor(Math.random() * 1000),
+                    merchant_id: "MERCH-" + Math.floor(Math.random() * 500),
+                    amount: amounts[Math.floor(Math.random() * amounts.length)],
+                    currency: "USD",
+                    device_id: devices[Math.floor(Math.random() * devices.length)],
+                    location: locations[Math.floor(Math.random() * locations.length)],
+                    timestamp: new Date().toISOString()
+                  });
+                }} className="w-full text-xs px-4 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-700 border border-slate-600 font-bold tracking-wider flex items-center justify-center transition-colors">
+                  <svg className="w-4 h-4 mr-2 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                  GENERATE RANDOM TRANSACTION
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-8">
