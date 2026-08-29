@@ -44,6 +44,7 @@ export default function Dashboard() {
   
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<FeedItem[]>([]);
+  const [resolvedApprovals, setResolvedApprovals] = useState<(FeedItem & { action: "APPROVE" | "REJECT" })[]>([]);
   
   // Manual Analysis state
   const [manualTx, setManualTx] = useState({
@@ -60,16 +61,19 @@ export default function Dashboard() {
   const [systemState, setSystemState] = useState<any>(null);
 
   // Fetch / Auth
-  const getHeaders = () => ({
-    "Content-Type": "application/json",
-    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
-    "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
-  });
+  const getHeaders = (isGet = false) => {
+    const headers: any = {
+      "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
+      "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
+    };
+    if (!isGet) headers["Content-Type"] = "application/json";
+    return headers;
+  };
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
   const fetchSystemState = async () => {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/system/trace`, { headers: getHeaders() });
+      const res = await fetch(`${apiUrl}/api/v1/system/trace`, { headers: getHeaders(true) });
       if (res.ok) setSystemState(await res.json());
     } catch (e) {
       console.error("System trace error", e);
@@ -150,18 +154,19 @@ export default function Dashboard() {
   // Handle Human Approval
   const resolveTransaction = async (txId: string, action: "APPROVE" | "REJECT") => {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/transactions/${txId}/resolve`, {
+      const itemToResolve = pendingApprovals.find(i => i.tx.transaction_id === txId) || resolvedApprovals.find(i => i.tx.transaction_id === txId);
+      if (!itemToResolve) return;
+
+      // Optimistic update for instant UI feedback
+      const updatedStatus = action === "APPROVE" ? "SAFE / HUMAN APPROVED" : "NOT SAFE / HUMAN REJECTED";
+      setPendingApprovals(prev => prev.filter(item => item.tx.transaction_id !== txId));
+      setResolvedApprovals(prev => [{ ...itemToResolve, action, status: updatedStatus }, ...prev.filter(i => i.tx.transaction_id !== txId)].slice(0, 50));
+      setFeed(prev => prev.map(item => item.tx.transaction_id === txId ? { ...item, status: updatedStatus } : item));
+      setAutoStats(prev => ({ ...prev, pendingReview: Math.max(0, pendingApprovals.length - 1) }));
+
+      await fetch(`${apiUrl}/api/v1/transactions/${txId}/resolve`, {
         method: "POST", headers: getHeaders(), body: JSON.stringify({ action, reason: "Human review via Dashboard" })
       });
-      if (res.ok) {
-        const data = await res.json();
-        // Update Feed
-        setFeed(prev => prev.map(item => item.tx.transaction_id === txId ? { ...item, status: data.status } : item));
-        // Remove from pending
-        setPendingApprovals(prev => prev.filter(item => item.tx.transaction_id !== txId));
-        // Update Stats
-        setAutoStats(prev => ({ ...prev, pendingReview: Math.max(0, prev.pendingReview - 1) }));
-      }
     } catch(e) {
       console.error("Resolution failed", e);
     }
@@ -363,6 +368,43 @@ export default function Dashboard() {
                     )}
                   </div>
                 </div>
+
+                {/* RESOLVED TRANSACTIONS */}
+                {resolvedApprovals.length > 0 && (
+                  <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col max-h-[300px]">
+                    <div className="px-6 py-4 border-b border-indigo-900/30 bg-indigo-950/10 flex justify-between items-center">
+                      <h2 className="text-sm font-bold text-indigo-400 flex items-center">
+                        ✓ Resolved Transactions
+                      </h2>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                      {resolvedApprovals.map((item, i) => (
+                        <div key={i} className="bg-[#1A2234] border border-slate-800 rounded-lg p-4 shadow-lg relative overflow-hidden animate-in fade-in">
+                          <div className={`absolute top-0 left-0 w-1 h-full ${item.action === 'APPROVE' ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="font-mono text-slate-300 text-xs font-bold">{item.tx.transaction_id}</span>
+                            <span className={`font-mono text-sm ${item.action === 'APPROVE' ? 'text-emerald-400' : 'text-rose-400'}`}>${item.tx.amount.toLocaleString()}</span>
+                          </div>
+                          <div className={`text-[10px] font-bold uppercase mb-3 ${item.action === 'APPROVE' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {item.action === 'APPROVE' ? 'APPROVED' : 'REJECTED'}
+                          </div>
+                          
+                          {item.action === 'REJECT' && (
+                            <div className="flex space-x-2 mt-2 pt-2 border-t border-slate-800">
+                              <button onClick={() => resolveTransaction(item.tx.transaction_id, "APPROVE")} className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 py-1.5 rounded font-bold text-[10px] transition-colors">
+                                CHANGE TO APPROVE
+                              </button>
+                              <button onClick={() => resolveTransaction(item.tx.transaction_id, "REJECT")} className="flex-1 bg-rose-500/20 text-rose-500 py-1.5 rounded font-bold text-[10px] transition-colors hover:bg-rose-500/30">
+                                REJECT (AGAIN)
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* SYSTEM HEALTH & CONTROLS */}
                 <div className="bg-[#131927] border border-slate-800 rounded-xl p-5 shadow-xl">
