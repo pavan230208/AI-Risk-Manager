@@ -407,12 +407,12 @@ export default function Dashboard() {
                           </div>
                           
                           {item.action === 'REJECT' && (
-                            <div className="flex space-x-2 mt-2 pt-2 border-t border-slate-800">
-                              <button onClick={() => resolveTransaction(item.tx.transaction_id, "APPROVE")} className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 py-1.5 rounded font-bold text-[10px] transition-colors">
-                                CHANGE TO APPROVE
+                            <div className="flex space-x-3 mt-3 pt-3 border-t border-slate-800">
+                              <button onClick={() => resolveTransaction(item.tx.transaction_id, "APPROVE")} className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 py-2 rounded font-bold text-xs transition-colors flex justify-center items-center">
+                                ✓ APPROVE
                               </button>
-                              <button onClick={() => resolveTransaction(item.tx.transaction_id, "REJECT")} className="flex-1 bg-rose-500/20 text-rose-500 py-1.5 rounded font-bold text-[10px] transition-colors hover:bg-rose-500/30">
-                                REJECT (AGAIN)
+                              <button onClick={() => resolveTransaction(item.tx.transaction_id, "REJECT")} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-2 rounded font-bold text-xs transition-colors flex justify-center items-center shadow-lg shadow-rose-500/20">
+                                ✕ REJECT
                               </button>
                             </div>
                           )}
@@ -573,26 +573,24 @@ export default function Dashboard() {
                     <strong>Explanation:</strong> {manualResult.explanation}
                   </div>
                   
-                  {(manualResult.authorization_state === 'PENDING_APPROVAL' || manualResult.policy_action === 'REQUIRE_APPROVAL' || manualResult.policy_action === 'FLAG') && (
-                    <div className="flex space-x-3 pt-6 mt-6 border-t border-slate-800">
-                      <button onClick={() => {
-                        const newItem: FeedItem = { tx: manualTx as Tx, result: manualResult, status: "PENDING" };
-                        setPendingApprovals(prev => [newItem, ...prev]);
-                        resolveTransaction(manualTx.transaction_id, "APPROVE");
-                        setActiveTab("dashboard");
-                      }} className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 py-3 rounded-lg font-bold text-sm transition-colors flex justify-center items-center">
-                        ✓ APPROVE & VIEW
-                      </button>
-                      <button onClick={() => {
-                        const newItem: FeedItem = { tx: manualTx as Tx, result: manualResult, status: "PENDING" };
-                        setPendingApprovals(prev => [newItem, ...prev]);
-                        resolveTransaction(manualTx.transaction_id, "REJECT");
-                        setActiveTab("dashboard");
-                      }} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-lg font-bold text-sm transition-colors flex justify-center items-center shadow-lg shadow-rose-500/20">
-                        ✕ REJECT & VIEW
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex space-x-3 pt-6 mt-6 border-t border-slate-800">
+                    <button onClick={() => {
+                      const newItem: FeedItem = { tx: manualTx as Tx, result: manualResult, status: "PENDING" };
+                      setPendingApprovals(prev => [newItem, ...prev]);
+                      resolveTransaction(manualTx.transaction_id, "APPROVE");
+                      setActiveTab("dashboard");
+                    }} className="flex-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 py-3 rounded-lg font-bold text-sm transition-colors flex justify-center items-center">
+                      ✓ APPROVE & VIEW
+                    </button>
+                    <button onClick={() => {
+                      const newItem: FeedItem = { tx: manualTx as Tx, result: manualResult, status: "PENDING" };
+                      setPendingApprovals(prev => [newItem, ...prev]);
+                      resolveTransaction(manualTx.transaction_id, "REJECT");
+                      setActiveTab("dashboard");
+                    }} className="flex-1 bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-lg font-bold text-sm transition-colors flex justify-center items-center shadow-lg shadow-rose-500/20">
+                      ✕ REJECT & VIEW
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
