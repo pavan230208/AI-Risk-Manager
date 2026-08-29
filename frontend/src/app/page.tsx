@@ -57,6 +57,8 @@ export default function Dashboard() {
   const [manualError, setManualError] = useState("");
   const [scenarioDesc, setScenarioDesc] = useState("Select a scenario to test different risk profiles.");
 
+  const [systemState, setSystemState] = useState<any>(null);
+
   // Fetch / Auth
   const getHeaders = () => ({
     "Content-Type": "application/json",
@@ -64,6 +66,28 @@ export default function Dashboard() {
     "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
   });
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  const fetchSystemState = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/system/trace`, { headers: getHeaders() });
+      if (res.ok) setSystemState(await res.json());
+    } catch (e) {
+      console.error("System trace error", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchSystemState();
+    const interval = setInterval(fetchSystemState, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const toggleKillSwitch = async (active: boolean) => {
+    await fetch(`${apiUrl}/api/v1/system/kill-switch`, {
+      method: "POST", headers: getHeaders(), body: JSON.stringify({ active })
+    });
+    fetchSystemState();
+  };
 
   // Evaluator function
   const evaluateTx = async (txData: Tx) => {
@@ -283,9 +307,9 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* RIGHT COLUMN: APPROVAL QUEUE */}
-              <div className="lg:col-span-1">
-                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[700px]">
+              {/* RIGHT COLUMN: APPROVAL QUEUE & SYSTEM TRACE */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col max-h-[450px]">
                   <div className="px-6 py-4 border-b border-rose-900/30 bg-rose-950/10 flex justify-between items-center">
                     <h2 className="text-lg font-bold text-rose-400 flex items-center">
                       ⚠ Human Approval Queue
@@ -336,6 +360,56 @@ export default function Dashboard() {
                           </div>
                         </div>
                       ))
+                    )}
+                  </div>
+                </div>
+
+                {/* SYSTEM HEALTH & CONTROLS */}
+                <div className="bg-[#131927] border border-slate-800 rounded-xl p-5 shadow-xl">
+                  <h2 className="text-sm font-bold mb-3 text-cyan-400 uppercase tracking-wider">System Health & Controls</h2>
+                  {systemState ? (
+                    <div className="space-y-2 text-xs font-mono">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">System Mode:</span> 
+                        <span className={systemState.system_state === 'NORMAL' ? 'text-emerald-400 font-bold' : 'text-rose-500 font-bold animate-pulse'}>{systemState.system_state}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Redis Broker:</span> 
+                        <span className="text-emerald-400">{systemState.redis_status}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">Event Bus:</span> 
+                        <span className="text-emerald-400">{systemState.event_bus_status}</span>
+                      </div>
+                      
+                      <div className="mt-4 pt-3 border-t border-slate-800">
+                        <button 
+                          onClick={() => toggleKillSwitch(systemState.system_state === 'NORMAL')}
+                          className={`w-full py-2 rounded font-bold transition-colors ${systemState.system_state === 'NORMAL' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/30 hover:bg-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'}`}
+                        >
+                          {systemState.system_state === 'NORMAL' ? 'ACTIVATE KILL SWITCH' : 'DEACTIVATE KILL SWITCH'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-slate-500 text-xs">Loading system state...</div>
+                  )}
+                </div>
+
+                {/* SYSTEM TRACE (AUDIT) */}
+                <div className="bg-[#131927] border border-slate-800 rounded-xl p-5 shadow-xl flex flex-col max-h-[300px]">
+                  <h2 className="text-sm font-bold mb-3 text-emerald-400 uppercase tracking-wider">System Trace (Audit)</h2>
+                  <div className="overflow-y-auto flex-1 space-y-2 font-mono text-[10px]">
+                    {systemState?.recent_events?.length > 0 ? (
+                      [...systemState.recent_events].map((ev: any, i: number) => (
+                        <div key={i} className="border-l-2 border-emerald-500/50 pl-2 py-1 bg-[#1A2234] rounded">
+                          <div className="text-emerald-400 font-bold">{ev.event_type}</div>
+                          <div className="text-slate-500 truncate">ID: {ev.correlation_id}</div>
+                          <div className="text-slate-400 mt-0.5 truncate">{JSON.stringify(ev.payload).substring(0, 80)}...</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-slate-500 italic">No recent events.</div>
                     )}
                   </div>
                 </div>
