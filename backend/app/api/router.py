@@ -19,6 +19,7 @@ from app.resilience.automation_state import automation_state
 from app.resilience.rate_limiter import rate_limiter
 from sqlalchemy.orm import Session
 from app.db.database import get_db
+from app.ml.evaluate import get_evaluation_metrics
 
 router = APIRouter()
 
@@ -52,6 +53,10 @@ class TransactionPayload(BaseModel):
 @router.get("/status")
 def status():
     return {"status": "operational", "service": "Autonomous AI Risk Manager API", "ml_ready": ml_engine.is_ready}
+
+@router.get("/ml/evaluation")
+def ml_evaluation(auth_payload: dict = Depends(require_roles([Role.ADMIN, Role.ANALYST, Role.OPERATOR, Role.VIEWER]))):
+    return get_evaluation_metrics()
 
 from app.api.auth import require_roles, Role, verify_api_key
 
