@@ -67,6 +67,7 @@ export default function Dashboard() {
   const [scenarioDesc, setScenarioDesc] = useState("Select a scenario to test different risk profiles.");
 
   const [systemState, setSystemState] = useState<any>(null);
+  const [systemError, setSystemError] = useState<string | null>(null);
 
   // Fetch / Auth
   const getHeaders = (isGet = false) => {
@@ -83,12 +84,18 @@ export default function Dashboard() {
   const fetchSystemState = async () => {
     try {
       const res = await fetch(`${apiUrl}/api/v1/system/trace`, { headers: getHeaders(true) });
-      if (res.ok) setSystemState(await res.json());
+      if (res.ok) {
+        setSystemState(await res.json());
+        setSystemError(null);
+      } else {
+        setSystemError(`API Error: ${res.status}`);
+      }
       
       const mlRes = await fetch(`${apiUrl}/api/v1/ml/evaluation`, { headers: getHeaders(true) });
       if (mlRes.ok) setMlMetrics(await mlRes.json());
-    } catch (e) {
+    } catch (e: any) {
       console.error("System trace error", e);
+      setSystemError("API Unreachable. Ensure NEXT_PUBLIC_API_URL is set in Vercel.");
     }
   };
 
@@ -290,7 +297,7 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* LEFT COLUMN: CONTROL & FEED */}
-              <div className="lg:col-span-2 flex flex-col space-y-6">
+              <div className="lg:col-span-2 flex flex-col space-y-6 h-full">
                 
                 {/* AUTOMATION CONTROL */}
                 <div className="bg-[#131927] border border-slate-800 rounded-xl p-6 shadow-xl relative overflow-hidden">
@@ -313,7 +320,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* LIVE FEED */}
-                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[600px] lg:h-[850px]">
+                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col min-h-[600px] flex-1">
                   <div className="px-4 sm:px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#0F1420] space-y-3 sm:space-y-0">
                     <div className="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-start">
                       <h2 className="text-lg font-bold text-white flex items-center">
@@ -382,7 +389,7 @@ export default function Dashboard() {
               </div>
 
               {/* RIGHT COLUMN: APPROVAL QUEUE & SYSTEM TRACE */}
-              <div className="lg:col-span-1 space-y-6">
+              <div className="lg:col-span-1 flex flex-col space-y-6 h-full">
                 <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col h-[400px] lg:h-[450px]">
                   <div className="px-6 py-4 border-b border-rose-900/30 bg-rose-950/10 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
                     <div className="flex items-center space-x-3">
@@ -686,9 +693,7 @@ export default function Dashboard() {
                 <div className="space-y-8 animate-in slide-in-from-bottom-4">
                   <div>
                     <div className="flex justify-between items-end mb-2">
-                      <span className="text-slate-400 font-medium text-lg border-b border-indigo-500/30 pb-1">AI EXPLANATION</span>
-<div className="text-xs text-indigo-300 mt-2 mb-4 bg-indigo-500/10 p-3 rounded-lg border border-indigo-500/20">The AI Risk Manager processed {manualTx?.amount ? "this transaction" : ""} through {manualResult?.rule_signals?.length || 0} rule triggers and ML modeling to determine its composite risk.</div>
-<span className="text-slate-400 font-medium">Composite Risk Score</span>
+                      <span className="text-slate-400 font-medium">Composite Risk Score</span>
                       <span className="text-3xl font-mono text-white">{manualResult.final_score}<span className="text-slate-500 text-xl">/100</span></span>
                     </div>
                     <div className="w-full bg-slate-800 rounded-full h-2">
@@ -803,6 +808,8 @@ export default function Dashboard() {
                   </div>
                 </div>
               </>
+            ) : systemError ? (
+              <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-sm">{systemError}</div>
             ) : (
               <div className="text-slate-500">Loading metrics...</div>
             )}
@@ -895,6 +902,8 @@ export default function Dashboard() {
                         {systemState.system_state === 'NORMAL' ? 'EMERGENCY KILL SWITCH' : 'RESTORE NORMAL OPERATIONS'}
                       </button>
                     </div>
+                  ) : systemError ? (
+                    <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-400 text-sm">{systemError}</div>
                   ) : (
                     <div className="text-slate-500">Loading system state...</div>
                   )}
