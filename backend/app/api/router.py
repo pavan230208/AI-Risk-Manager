@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, field_validator
 import pandas as pd
 from typing import Dict, Any, Optional
 
-from app.ml.inference import MLRiskEngine
+from app.ml.inference import risk_engine
 from app.ml.features import extract_features
 from app.risk.rule_engine import DeterministicRuleEngine
 from app.risk.scorer import RiskScorer
@@ -13,7 +13,7 @@ from app.core.events import EventSchema, bus
 from app.resilience.kill_switch import state as system_state
 import uuid
 from datetime import datetime, timezone, timedelta
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, BackgroundTasks
 from app.api.auth import require_roles, Role, verify_api_key, verify_integration_api_key
 from app.resilience.automation_state import automation_state
 from app.resilience.rate_limiter import rate_limiter
@@ -23,7 +23,7 @@ from app.ml.evaluate import get_evaluation_metrics, record_live_evaluation
 
 router = APIRouter()
 
-ml_engine = MLRiskEngine()
+
 rule_engine = DeterministicRuleEngine()
 scorer = RiskScorer()
 policy_engine = PolicyEngine()
@@ -53,7 +53,7 @@ class TransactionPayload(BaseModel):
 
 @router.get("/status")
 def status():
-    return {"status": "operational", "service": "Autonomous AI Risk Manager API", "ml_ready": ml_engine.is_ready}
+    return {"status": "operational", "service": "Autonomous AI Risk Manager API", "ml_ready": risk_engine.is_ready}
 
 @router.get("/ml/evaluation")
 def ml_evaluation():
@@ -62,7 +62,7 @@ def ml_evaluation():
 from app.api.auth import require_roles, Role, verify_api_key
 
 @router.post("/evaluate")
-def evaluate_transaction(payload: TransactionPayload, api_key: str = Depends(verify_api_key), tenant_id: str = None, db: Session = Depends(get_db)):
+def evaluate_transaction(payload: TransactionPayload, background_tasks: BackgroundTasks, api_key: str = Depends(verify_api_key), tenant_id: str = None, db: Session = Depends(get_db)):
     correlation_id = str(uuid.uuid4())
     
     tx_dict = payload.model_dump()
@@ -71,7 +71,7 @@ def evaluate_transaction(payload: TransactionPayload, api_key: str = Depends(ver
     try:
         from app.ml.features import FeatureEngineeringError
         df_features = extract_features(df)
-        ml_result = ml_engine.predict(df_features)
+        ml_result = risk_engine.predict(df_features)
         features_dict = df_features.iloc[0].to_dict()
     except FeatureEngineeringError as e:
         # FAIL SAFE: Reject dangerous malformed input
@@ -136,7 +136,7 @@ def evaluate_transaction(payload: TransactionPayload, api_key: str = Depends(ver
         },
         producer="FastAPI_Router"
     )
-    bus.publish(event)
+    background_tasks.add_task(bus.publish, event)
     
     return {
         "transaction_id": payload.transaction_id,
@@ -152,7 +152,7 @@ def evaluate_transaction(payload: TransactionPayload, api_key: str = Depends(ver
         "authorization_state": policy_action.authorization_state,
         "execution_status": execution_reason,
         "policy_version": policy_action.version,
-        "model_version": getattr(ml_engine, 'version', "1.0"),
+        "model_version": getattr(risk_engine, 'version', "1.0"),
         "explanation": policy_action.reason,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
@@ -249,7 +249,7 @@ def integration_health():
     }
 
 @router.post("/transactions/evaluate")
-def evaluate_transaction_automated(payload: TransactionPayload, auth_context: dict = Depends(verify_integration_api_key), db: Session = Depends(get_db)):
+def evaluate_transaction_automated(payload: TransactionPayload, background_tasks: BackgroundTasks, auth_context: dict = Depends(verify_integration_api_key), db: Session = Depends(get_db)):
     
     tenant_id = auth_context.get("tenant_id")
     client_id = tenant_id if tenant_id else "legacy_api"
@@ -263,7 +263,7 @@ def evaluate_transaction_automated(payload: TransactionPayload, auth_context: di
     # Currently payload doesn't have tenant_id in TransactionPayload.
     
     # We will pass the tenant_id to the evaluate_transaction function
-    return evaluate_transaction(payload, api_key="placeholder", tenant_id=tenant_id, db=db)
+    return evaluate_transaction(payload, background_tasks=background_tasks, api_key="placeholder", tenant_id=tenant_id, db=db)
 
 class ResolutionPayload(BaseModel):
     action: str
@@ -308,6 +308,7 @@ def resolve_transaction(
 @router.post("/webhooks/transactions")
 def evaluate_transaction_webhook(
     raw_payload: Dict[str, Any], 
+    background_tasks: BackgroundTasks,
     provider: str = "generic", 
     auth_context: dict = Depends(verify_integration_api_key), 
     db: Session = Depends(get_db)
@@ -323,5 +324,5 @@ def evaluate_transaction_webhook(
     except ProviderAdapterError as e:
         raise HTTPException(status_code=422, detail=f"Provider normalization failed: {str(e)}")
         
-    return evaluate_transaction_automated(payload=normalized_payload, auth_context=auth_context, db=db)
+    return evaluate_transaction_automated(payload=normalized_payload, background_tasks=background_tasks, auth_context=auth_context, db=db)
 

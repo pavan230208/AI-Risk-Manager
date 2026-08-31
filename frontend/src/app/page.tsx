@@ -84,29 +84,22 @@ export default function Dashboard() {
   
   const fetchSystemState = async () => {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/system/trace`, { headers: getHeaders(true) });
-      if (res.ok) {
-        setSystemState(await res.json());
-        setSystemError(null);
-      }
+      const [sysRes, mlRes] = await Promise.all([
+        fetch(`${apiUrl}/api/v1/system/trace`, { headers: getHeaders(true) }),
+        fetch(`${apiUrl}/api/v1/ml/evaluation`, { headers: getHeaders(true) })
+      ]);
+      
+      if (sysRes.ok) setSystemState(await sysRes.json());
+      if (mlRes.ok) setMlMetrics(await mlRes.json());
+      setSystemError(null);
     } catch (e: any) {
-      console.warn("Trace fetch skipped:", e.message);
-    }
-
-    try {
-      const mlRes = await fetch(`${apiUrl}/api/v1/ml/evaluation`, { headers: getHeaders(true) });
-      if (mlRes.ok) {
-        setMlMetrics(await mlRes.json());
-        setSystemError(null);
-      }
-    } catch (e: any) {
-      console.warn("ML eval fetch skipped:", e.message);
+      console.warn("Fetch skipped:", e.message);
     }
   };
 
   useEffect(() => {
     fetchSystemState();
-    const interval = setInterval(fetchSystemState, 3000);
+    const interval = setInterval(fetchSystemState, 2500);
     return () => clearInterval(interval);
   }, []);
 
@@ -171,7 +164,7 @@ export default function Dashboard() {
             pendingReview: needsReview ? prev.pendingReview + 1 : prev.pendingReview
           }));
         } catch (e) { console.error("Sim error", e); }
-      }, 3500);
+      }, 800);
     }
     return () => clearInterval(interval);
   }, [autoRunning]);
