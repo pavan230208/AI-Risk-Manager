@@ -87,15 +87,19 @@ export default function Dashboard() {
       if (res.ok) {
         setSystemState(await res.json());
         setSystemError(null);
-      } else {
-        setSystemError(`API Error: ${res.status}`);
       }
-      
-      const mlRes = await fetch(`${apiUrl}/api/v1/ml/evaluation`, { headers: getHeaders(true) });
-      if (mlRes.ok) setMlMetrics(await mlRes.json());
     } catch (e: any) {
-      console.error("System trace error", e);
-      setSystemError("API Unreachable. Ensure NEXT_PUBLIC_API_URL is set in Vercel.");
+      console.warn("Trace fetch skipped:", e.message);
+    }
+
+    try {
+      const mlRes = await fetch(`${apiUrl}/api/v1/ml/evaluation`, { headers: getHeaders(true) });
+      if (mlRes.ok) {
+        setMlMetrics(await mlRes.json());
+        setSystemError(null);
+      }
+    } catch (e: any) {
+      console.warn("ML eval fetch skipped:", e.message);
     }
   };
 
