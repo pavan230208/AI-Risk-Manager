@@ -297,7 +297,7 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* LEFT COLUMN: CONTROL & FEED */}
-              <div className="lg:col-span-2 flex flex-col space-y-6 h-full min-h-[600px] min-h-0">
+              <div className="lg:col-span-2 flex flex-col space-y-6 h-full">
                 
                 {/* AUTOMATION CONTROL */}
                 <div className="bg-[#131927] border border-slate-800 rounded-xl p-6 shadow-xl relative overflow-hidden">
@@ -320,8 +320,8 @@ export default function Dashboard() {
                 </div>
 
                 {/* LIVE FEED */}
-                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col flex-1 min-h-0">
-                  <div className="px-4 sm:px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#0F1420] space-y-3 sm:space-y-0">
+                <div className="bg-[#131927] border border-slate-800 rounded-xl overflow-hidden shadow-xl flex flex-col flex-1 relative min-h-[400px]">
+                  <div className="px-4 sm:px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#0F1420] space-y-3 sm:space-y-0 relative z-10">
                     <div className="flex items-center space-x-4 w-full sm:w-auto justify-between sm:justify-start">
                       <h2 className="text-lg font-bold text-white flex items-center">
                         Live Feed 
@@ -336,7 +336,8 @@ export default function Dashboard() {
                       />
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <div className="flex-1 relative">
+                    <div className="absolute inset-0 overflow-y-auto p-4 space-y-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {feed.filter(item => item.tx.transaction_id.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
                       <div className="h-full flex items-center justify-center flex-col text-slate-500 space-y-2">
                         {feed.length === 0 ? (
@@ -384,6 +385,7 @@ export default function Dashboard() {
                         </div>
                       ))
                     )}
+                    </div>
                   </div>
                 </div>
               </div>
