@@ -25,6 +25,7 @@ type Tx = {
   device_id: string;
   location: string;
   timestamp: string;
+  is_fraud?: boolean;
 };
 
 type FeedItem = {
@@ -142,7 +143,8 @@ export default function Dashboard() {
           currency: "USD",
           device_id: devices[Math.floor(Math.random() * devices.length)],
           location: locations[Math.floor(Math.random() * locations.length)],
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          is_fraud: Math.random() > 0.8 // 20% simulated fraud rate
         };
 
         try {

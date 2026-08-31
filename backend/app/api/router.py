@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field, field_validator
 import pandas as pd
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from app.ml.inference import MLRiskEngine
 from app.ml.features import extract_features
@@ -19,7 +19,7 @@ from app.resilience.automation_state import automation_state
 from app.resilience.rate_limiter import rate_limiter
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.ml.evaluate import get_evaluation_metrics
+from app.ml.evaluate import get_evaluation_metrics, record_live_evaluation
 
 router = APIRouter()
 
@@ -40,6 +40,7 @@ class TransactionPayload(BaseModel):
     device_id: str = Field(..., min_length=1, max_length=100)
     location: str = Field(..., min_length=2, max_length=100)
     timestamp: str
+    is_fraud: Optional[bool] = Field(None, description="Optional ground truth for simulated transactions")
 
     model_config = {"extra": "forbid"}
 
@@ -83,6 +84,10 @@ def evaluate_transaction(payload: TransactionPayload, api_key: str = Depends(ver
     rule_signals = rule_engine.evaluate(tx_dict, features_dict)
     score_result = scorer.calculate_score(ml_result, rule_signals)
     
+    if payload.is_fraud is not None:
+        record_live_evaluation(payload.is_fraud, ml_result["is_risky"])
+        
+
     policy_action = policy_engine.evaluate_action(score_result)
     
     action_id = payload.transaction_id
