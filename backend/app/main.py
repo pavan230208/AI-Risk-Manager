@@ -12,14 +12,14 @@ app = FastAPI(
 )
 
 # Set all CORS enabled origins
-if settings.BACKEND_CORS_ORIGINS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[str(origin).rstrip("/") for origin in settings.BACKEND_CORS_ORIGINS],
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Accept", "X-API-Key"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -73,5 +73,6 @@ def readiness():
     return Response(content=str(checks), status_code=status_code)
 
 app.include_router(router, prefix="/api/v1")
+
 
 
