@@ -78,7 +78,7 @@ export default function Dashboard() {
     if (!isGet) headers["Content-Type"] = "application/json";
     return headers;
   };
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://ai-risk-manager-qmnw.onrender.com";
 
   
   const fetchSystemState = async () => {
@@ -954,6 +954,7 @@ const MetricCard = ({ title, value, color = "text-white", highlight = false }: {
     <p className={`text-3xl font-mono ${color}`}>{value}</p>
   </div>
 );
+
 
 
 

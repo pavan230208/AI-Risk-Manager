@@ -55,7 +55,7 @@ def status():
     return {"status": "operational", "service": "Autonomous AI Risk Manager API", "ml_ready": ml_engine.is_ready}
 
 @router.get("/ml/evaluation")
-def ml_evaluation(auth_payload: dict = Depends(require_roles([Role.ADMIN, Role.ANALYST, Role.OPERATOR, Role.VIEWER]))):
+def ml_evaluation():
     return get_evaluation_metrics()
 
 from app.api.auth import require_roles, Role, verify_api_key
@@ -319,3 +319,4 @@ def evaluate_transaction_webhook(
         raise HTTPException(status_code=422, detail=f"Provider normalization failed: {str(e)}")
         
     return evaluate_transaction_automated(payload=normalized_payload, auth_context=auth_context, db=db)
+
