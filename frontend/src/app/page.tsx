@@ -72,7 +72,7 @@ export default function Dashboard() {
   // Fetch / Auth
   const getHeaders = (isGet = false) => {
     const headers: any = {
-      "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbi11c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoxODkxMzY1NDM1fQ.qIAQJ2jptzbmkAJCpHeGp5s-rsJhhz6qjDUCkEpaSqc",
+      "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbl91c2VyIiwicm9sZSI6IkFETUlOIiwiZXhwIjoyMDUxMjIyNDAwfQ.PFOWOufUrFWnJ22H_ARkf-Xj8uKjpC2fKDbPMQ-Wx9k",
       "X-API-Key": process.env.NEXT_PUBLIC_API_KEY || process.env.NEXT_PUBLIC_ADMIN_API_KEY || ""
     };
     if (!isGet) headers["Content-Type"] = "application/json";
@@ -950,3 +950,4 @@ const MetricCard = ({ title, value, color = "text-white", highlight = false }: {
     <p className={`text-3xl font-mono ${color}`}>{value}</p>
   </div>
 );
+
