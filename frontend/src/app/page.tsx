@@ -775,21 +775,21 @@ export default function Dashboard() {
                       
                       <div className="text-slate-400 flex items-center justify-end pr-4">ACTUAL FRAUD</div>
                       <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-4 rounded-lg">
-                        <div className="text-2xl font-bold">{mlMetrics.true_positives}</div>
+                        <div className="text-2xl font-bold">{mlMetrics.confusion_matrix.true_positive}</div>
                         <div className="text-[10px] uppercase">True Positive (Blocked)</div>
                       </div>
                       <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 p-4 rounded-lg">
-                        <div className="text-2xl font-bold">{mlMetrics.false_negatives}</div>
+                        <div className="text-2xl font-bold">{mlMetrics.confusion_matrix.false_negative}</div>
                         <div className="text-[10px] uppercase">False Negative (Missed)</div>
                       </div>
                       
                       <div className="text-slate-400 flex items-center justify-end pr-4">ACTUAL SAFE</div>
                       <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 p-4 rounded-lg">
-                        <div className="text-2xl font-bold">{mlMetrics.false_positives}</div>
+                        <div className="text-2xl font-bold">{mlMetrics.confusion_matrix.false_positive}</div>
                         <div className="text-[10px] uppercase">False Positive (Friction)</div>
                       </div>
                       <div className="bg-slate-800/50 border border-slate-700 text-slate-300 p-4 rounded-lg">
-                        <div className="text-2xl font-bold">{mlMetrics.true_negatives}</div>
+                        <div className="text-2xl font-bold">{mlMetrics.confusion_matrix.true_negative}</div>
                         <div className="text-[10px] uppercase">True Negative (Allowed)</div>
                       </div>
                     </div>
