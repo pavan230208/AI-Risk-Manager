@@ -70,6 +70,11 @@ export default function Dashboard() {
   const [systemState, setSystemState] = useState<any>(null);
   const [systemError, setSystemError] = useState<string | null>(null);
 
+  // Application startup state
+  const [appState, setAppState] = useState<"LOADING" | "READY" | "ERROR">("LOADING");
+  const [appMessage, setAppMessage] = useState("Connecting to Risk Engine...");
+  const isPollingRef = React.useRef(false);
+
   // Fetch / Auth
   const getHeaders = (isGet = false) => {
     const headers: any = {
@@ -83,6 +88,8 @@ export default function Dashboard() {
 
   
   const fetchSystemState = async () => {
+    if (isPollingRef.current) return;
+    isPollingRef.current = true;
     try {
       const [sysRes, mlRes] = await Promise.all([
         fetch(`${apiUrl}/api/v1/system/trace`, { headers: getHeaders(true) }),
@@ -94,14 +101,49 @@ export default function Dashboard() {
       setSystemError(null);
     } catch (e: any) {
       console.warn("Fetch skipped:", e.message);
+    } finally {
+      isPollingRef.current = false;
+    }
+  };
+
+  const checkHealthWithRetry = async (retries = 8, backoff = 1000): Promise<boolean> => {
+    let currentBackoff = backoff;
+    for (let i = 0; i < retries; i++) {
+      try {
+        setAppMessage(i === 0 ? "Connecting to Risk Engine..." : i < 3 ? "Waiting for backend..." : "Reconnecting...");
+        const res = await fetch(`${apiUrl}/health`);
+        if (res.ok) return true;
+      } catch (e) {
+        // Network error, backend waking up
+      }
+      await new Promise(r => setTimeout(r, currentBackoff));
+      currentBackoff *= 1.5;
+    }
+    return false;
+  };
+
+  const initApp = async () => {
+    setAppState("LOADING");
+    const isHealthy = await checkHealthWithRetry();
+    if (isHealthy) {
+      await fetchSystemState();
+      setAppState("READY");
+    } else {
+      setAppState("ERROR");
+      setAppMessage("Backend unavailable. Retries exhausted.");
     }
   };
 
   useEffect(() => {
-    fetchSystemState();
-    const interval = setInterval(fetchSystemState, 2500);
-    return () => clearInterval(interval);
+    initApp();
   }, []);
+
+  useEffect(() => {
+    if (appState === "READY") {
+      const interval = setInterval(fetchSystemState, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [appState]);
 
   const toggleKillSwitch = async (active: boolean) => {
     await fetch(`${apiUrl}/api/v1/system/kill-switch`, {
@@ -228,6 +270,28 @@ export default function Dashboard() {
     if (status.includes("REJECTED") || ['BLOCK', 'BLOCK_MERCHANT'].includes(action)) return 'text-rose-500';
     return 'text-amber-400';
   };
+
+  if (appState === "LOADING") {
+    return (
+      <div className="min-h-screen bg-[#0A0E17] flex items-center justify-center flex-col text-slate-300 font-sans">
+        <div className="w-16 h-16 rounded-full border-4 border-dashed border-indigo-500 animate-[spin_3s_linear_infinite] mb-6"></div>
+        <h2 className="text-xl font-bold text-white mb-2">{appMessage}</h2>
+        <p className="text-slate-500 text-sm">Please wait while the system initializes.</p>
+      </div>
+    );
+  }
+
+  if (appState === "ERROR") {
+    return (
+      <div className="min-h-screen bg-[#0A0E17] flex items-center justify-center flex-col text-slate-300 font-sans">
+        <div className="w-16 h-16 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center text-3xl mb-6">✕</div>
+        <h2 className="text-xl font-bold text-rose-400 mb-2">{appMessage}</h2>
+        <button onClick={initApp} className="mt-4 px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-bold rounded shadow-lg shadow-indigo-500/30 transition-colors">
+          RETRY
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0E17] text-slate-300 font-sans selection:bg-indigo-500/30">

@@ -16,11 +16,7 @@ app = FastAPI(
 @app.middleware("http")
 async def cors_and_limit_middleware(request: Request, call_next):
     if request.method == "OPTIONS":
-        response = Response(status_code=200)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
+        return Response(status_code=200)
 
     if request.method in ["POST", "PUT", "PATCH"]:
         content_length = request.headers.get("content-length")
@@ -29,21 +25,32 @@ async def cors_and_limit_middleware(request: Request, call_next):
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 content={"detail": f"Request body too large. Max size is {settings.MAX_REQUEST_SIZE_BYTES} bytes."}
             )
-            res.headers["Access-Control-Allow-Origin"] = "*"
             return res
 
     response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
     return response
+
+origins = [
+    "https://ai-risk-manager-delta.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost",
+]
+
+if settings.BACKEND_CORS_ORIGINS:
+    origins.extend([str(origin) for origin in settings.BACKEND_CORS_ORIGINS])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
 @app.get("/health/liveness")
 def liveness():
